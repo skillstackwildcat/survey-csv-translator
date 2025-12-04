@@ -46,13 +46,8 @@ venv.bak/
 .env.local
 .env.*.local
 
-# Output files (translated CSVs)
-# Uncomment the line below if you don't want to track translated output files
-*_translated_*.csv
-*_french_*.csv
-*_spanish_*.csv
-*_german_*.csv
-# Add other language patterns as needed
+# CSV files
+*.csv
 
 # Jupyter Notebook
 .ipynb_checkpoints
