@@ -132,12 +132,37 @@ Important instructions:
 - Keep all placeholders in curly braces unchanged (e.g., {{ORGANIZATION}})
 - Maintain the same tone and style as the original
 - Translate naturally and accurately
+- Return only the translated text, without any labels or prefixes
 
 Text to translate:
-{text}
-
-Translation:"""
+{text}"""
         return prompt
+    
+    def _clean_translation_response(self, translation: str) -> str:
+        """Clean the translation response to remove any unwanted labels or prefixes."""
+        if not translation:
+            return translation
+        
+        # Remove common prefixes that might appear
+        prefixes_to_remove = [
+            "Translation:",
+            "Translation :",
+            "Translated text:",
+            "Translated:",
+            "Here is the translation:",
+            "Here's the translation:",
+        ]
+        
+        cleaned = translation.strip()
+        
+        # Remove any prefix (case-insensitive)
+        for prefix in prefixes_to_remove:
+            if cleaned.lower().startswith(prefix.lower()):
+                cleaned = cleaned[len(prefix):].strip()
+                # Also remove any leading colon or dash that might remain
+                cleaned = cleaned.lstrip(':').lstrip('-').strip()
+        
+        return cleaned
     
     def translate_text(self, text: str, target_language: str) -> str:
         """Translate a single text using OpenAI API with caching."""
@@ -147,6 +172,12 @@ Translation:"""
         # Check translation memory first
         cached = self.memory.get_translation(text, target_language)
         if cached is not None:
+            # Clean cached translation in case it has unwanted labels
+            original_cached = cached
+            cached = self._clean_translation_response(cached)
+            # Update memory with cleaned version if it changed
+            if cached != original_cached:
+                self.memory.save_translation(text, target_language, cached)
             self.stats['cached_rows'] += 1
             return cached
         
@@ -159,7 +190,7 @@ Translation:"""
             response = self.client.chat.completions.create(
                 model="gpt-4o-mini",  # Using cost-effective model
                 messages=[
-                    {"role": "system", "content": "You are a professional translator. Translate accurately while preserving all formatting and placeholders."},
+                    {"role": "system", "content": "You are a professional translator. Return only the translated text without any labels, prefixes, or explanations. Preserve all formatting and placeholders exactly as they appear."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,  # Lower temperature for more consistent translations
@@ -167,6 +198,8 @@ Translation:"""
             )
             
             translation = response.choices[0].message.content.strip()
+            # Clean the translation to remove any unwanted labels
+            translation = self._clean_translation_response(translation)
             self.stats['api_calls'] += 1
             
             # Save to memory
